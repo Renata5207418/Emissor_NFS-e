@@ -171,7 +171,7 @@ def build_nfse_xml(
         cliente_cep_raw = sanitize_document(client.get("cep") or "")
 
         # 1. Lógica de Bloqueio:
-        # Se não tiver IBGE (caso do seu cliente Regional) ou não tiver CEP,
+        # Se não tiver IBGE ou não tiver CEP,
         # as variáveis abaixo dão False e o bloco de endereço inteiro é pulado.
         ibge_ok = cliente_cmun_raw.isdigit() and len(cliente_cmun_raw) == 7
         cep_ok = cliente_cep_raw.isdigit() and len(cliente_cep_raw) == 8
