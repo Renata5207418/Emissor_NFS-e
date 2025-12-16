@@ -19,6 +19,12 @@ import zipfile
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
+MESES_ABREV = {
+    1: "JAN", 2: "FEV", 3: "MAR", 4: "ABR", 5: "MAI", 6: "JUN",
+    7: "JUL", 8: "AGO", 9: "SET", 10: "OUT", 11: "NOV", 12: "DEZ"
+}
+
+
 @router.get("")
 def list_tasks(
         emitterId: str | None = None,
@@ -248,10 +254,10 @@ def download_all_xml(
 
 @router.get("/batch/pdf")
 def download_all_pdf(
-    emitterId: str | None = None,
-    mes: int | None = Query(None, ge=1, le=12),
-    ano: int | None = Query(None, ge=2000),
-    current_user: UserInDB = Depends(get_current_user)
+        emitterId: str | None = None,
+        mes: int | None = Query(None, ge=1, le=12),
+        ano: int | None = Query(None, ge=2000),
+        current_user: UserInDB = Depends(get_current_user)
 ):
     user_id = ObjectId(current_user.id)
 
@@ -265,7 +271,6 @@ def download_all_pdf(
 
     if mes and ano:
         inicio = f"{ano}-{str(mes).zfill(2)}-01"
-
         if mes == 12:
             fim = f"{ano + 1}-01-01"
         else:
@@ -276,22 +281,86 @@ def download_all_pdf(
             "$lt": fim
         }
 
-    cur = db.tasks.find(q)
+    # Ordena por data de criação para que o (1), (2) siga a ordem de emissão
+    cur = db.tasks.find(q).sort("created_at", 1)
+
     mem = io.BytesIO()
+
+    # Cache de clientes (CNPJ/CPF)
+    client_cache = {}
+
+    # Controle de contadores para nomes repetidos
+    filename_counters = {}
 
     with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as zf:
         for t in cur:
             tr = t.get("transmit") or {}
             pdf_b64 = tr.get("pdf_base64")
+
             if not pdf_b64:
-                continue  # pula notas sem PDF ainda
+                continue
 
             try:
                 pdf_bytes = base64.b64decode(pdf_b64)
-                filename = f"danfs_{t['_id']}.pdf"
-                zf.writestr(filename, pdf_bytes)
             except Exception:
                 continue
+
+            # --- 1. BUSCA DOC DO CLIENTE ---
+            doc_cliente = "DOC"
+            client_id = t.get("client_id")
+
+            if client_id:
+                cid_str = str(client_id)
+                if cid_str in client_cache:
+                    doc_cliente = client_cache[cid_str]
+                else:
+                    try:
+                        cid_obj = ObjectId(client_id) if ObjectId.is_valid(client_id) else client_id
+                        cli = db.clients.find_one({"_id": cid_obj}, {"cnpj": 1, "cpf": 1})
+                        if cli:
+                            raw_doc = cli.get("cnpj") or cli.get("cpf") or ""
+                            # Remove pontuação, deixa só números
+                            clean_doc = "".join(filter(str.isdigit, raw_doc))
+                            if clean_doc:
+                                doc_cliente = clean_doc
+                        client_cache[cid_str] = doc_cliente
+                    except:
+                        pass
+
+            # --- 2. FORMATA A DATA ---
+            mes_str = "MES"
+            ano_str = "ANO"
+            data_ref = t.get("competencia")
+
+            if data_ref and isinstance(data_ref, str) and len(data_ref) >= 10:
+                try:
+                    ano_val = data_ref[2:4]  # 25
+                    mes_val = int(data_ref[5:7])  # 12
+                    mes_str = MESES_ABREV.get(mes_val, "MES")
+                    ano_str = ano_val
+                except:
+                    pass
+            elif t.get("created_at"):
+                dt = t.get("created_at")
+                mes_str = MESES_ABREV.get(dt.month, "MES")
+                ano_str = dt.strftime("%y")
+
+            # --- 3. MONTA O NOME BASE ---
+            base_filename = f"{doc_cliente}_NF_{mes_str}_{ano_str}"
+
+            # --- 4. GERA O CONTADOR (1), (2)... ---
+            if base_filename not in filename_counters:
+                # Primeiro arquivo: não põe contador
+                final_filename = f"{base_filename}.pdf"
+                filename_counters[base_filename] = 0
+            else:
+                # Segundo em diante: (1), (2)...
+                count = filename_counters[base_filename] + 1
+                filename_counters[base_filename] = count
+                final_filename = f"{base_filename}({count}).pdf"
+
+            # Escreve no ZIP
+            zf.writestr(final_filename, pdf_bytes)
 
     mem.seek(0)
     return StreamingResponse(
@@ -327,30 +396,71 @@ def download_xml(task_id: str = Path(...), current_user: UserInDB = Depends(get_
 
 @router.get("/{task_id}/guia")
 def download_guia(task_id: str = Path(...), current_user: UserInDB = Depends(get_current_user)):
-    """
-    Baixa a guia oficial em PDF **se** a prefeitura forneceu (transmit.pdf_base64).
-    Caso não exista, retorna 400 (sem gerar PDF fake).
-    """
     user_id = ObjectId(current_user.id)
+
+    # Busca a task (Rápido - Indexado)
     task = db.tasks.find_one({"_id": ObjectId(task_id), "user_id": user_id})
     if not task:
         raise HTTPException(status_code=404, detail="Task não encontrada")
 
+    # Verifica Base64 (Na memória)
     tr = task.get("transmit") or {}
     pdf_b64 = tr.get("pdf_base64")
-
     if not pdf_b64:
-        raise HTTPException(status_code=400, detail="Guia oficial ainda não disponível para esta nota.")
+        raise HTTPException(status_code=400, detail="Guia ainda não disponível.")
 
+    # Decodifica (Processamento CPU - Rápido)
     try:
         pdf_bytes = base64.b64decode(pdf_b64)
     except Exception:
-        raise HTTPException(status_code=400, detail="PDF inválido no retorno da prefeitura.")
+        raise HTTPException(status_code=400, detail="PDF inválido.")
+
+    # --- MONTAGEM DO NOME (Otimizado) ---
+    doc_cliente = "DOC"
+
+    # Só vai ao banco se tiver client_id. Se não tiver, pula.
+    client_id = task.get("client_id")
+    if client_id:
+        try:
+            # ObjectId é muito rápido
+            cid_obj = ObjectId(client_id) if isinstance(client_id, str) else client_id
+
+            cliente = db.clients.find_one({"_id": cid_obj}, {"cnpj": 1, "cpf": 1})
+
+            if cliente:
+                raw_doc = cliente.get("cnpj") or cliente.get("cpf") or ""
+                # Remove pontuação rapidamente
+                doc_cliente = "".join(filter(str.isdigit, raw_doc))
+        except Exception:
+            pass  # Se der qualquer erro, segue com "DOC" e não trava o download
+
+    # Formata Data
+    mes_str = "MES"
+    ano_str = "ANO"
+
+    # Tenta usar a competência primeiro (string), é mais rápido que converter objeto datetime
+    data_ref = task.get("competencia")
+    if data_ref and isinstance(data_ref, str) and len(data_ref) >= 10:
+        try:
+            # Parse manual da string YYYY-MM-DD é mais rápido que carregar libs pesadas
+            ano_val = data_ref[2:4]  # pega '25' de '2025'
+            mes_val = int(data_ref[5:7])  # pega 12 de '...-12-...'
+            mes_str = MESES_ABREV.get(mes_val, "MES")
+            ano_str = ano_val
+        except:
+            pass
+    elif task.get("created_at"):
+        # Fallback para created_at se não tiver competência string
+        dt = task.get("created_at")
+        mes_str = MESES_ABREV.get(dt.month, "MES")
+        ano_str = dt.strftime("%y")
+
+    filename = f"{doc_cliente}_NF_{mes_str}_{ano_str}.pdf"
 
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="danfs_{task_id}.pdf"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
 
 
