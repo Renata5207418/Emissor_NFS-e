@@ -19,8 +19,8 @@ import {
   downloadGuia,
   downloadXml,
   downloadAllPdf,
-  getClientsUpdatedRecently,
-  clearRecentClientUpdates,
+  getClientsUpdatedRecently, // Importado e agora usado
+  clearRecentClientUpdates, // Importado e agora usado
   deleteTask,
   cancelTask,
   cancelTasksBatch,
@@ -56,6 +56,10 @@ export default function Dashboard() {
   const [justificativaLote, setJustificativaLote] = useState("");
   const [isCancelingLote, setIsCancelingLote] = useState(false);
   const [motivoLote, setMotivoLote] = useState("2");
+
+  // --- NOVO: Modal de Clientes Atualizados ---
+  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
+  const [updatedClientsList, setUpdatedClientsList] = useState([]);
 
 
   // Estados de UI
@@ -109,10 +113,10 @@ export default function Dashboard() {
       if (st === "accepted") acc.sucesso++;
       else if (st === "pending") acc.pending++;
       else if (st === "error") acc.erro++;
-      else if (st === "canceled") acc.cancelado++; // Adicionado
+      else if (st === "canceled") acc.cancelado++;
       return acc;
     },
-    { sucesso: 0, pending: 0, erro: 0, cancelado: 0 } // Adicionado
+    { sucesso: 0, pending: 0, erro: 0, cancelado: 0 }
   );
 
   const filteredTasks = useMemo(() =>
@@ -134,7 +138,7 @@ export default function Dashboard() {
     accepted: "Emitida",
     pending: "Pendente",
     error: "Erro",
-    canceled: "Cancelada", // Adicionado
+    canceled: "Cancelada",
   };
 
   // --- Funções de Download (Lote) ---
@@ -143,11 +147,8 @@ export default function Dashboard() {
       window.notify("Nenhuma nota encontrada.", "error");
       return;
     }
-    // Trava o botão
     setIsDownloadingBatch(true);
-    // Fecha o menu para o usuário ver o feedback na tela
     setOpenMenuId(null);
-    // Feedback imediato
     window.notify("Gerando ZIP de XMLs... O download iniciará em instantes.", "info");
 
     const emitterId = filtroEmissor ? filteredTasks[0]?.emitter_id : undefined;
@@ -167,10 +168,9 @@ const handleDownloadFilteredPDF = async () => {
       window.notify("Nenhuma nota encontrada.", "error");
       return;
     }
-    setIsDownloadingBatch(true); // Liga o loading
-    setOpenMenuId(null); // Fecha o menu
+    setIsDownloadingBatch(true);
+    setOpenMenuId(null);
     window.notify("Compilando PDFs e gerando ZIP... Aguarde.", "info");
-    // ----------------------------------------
     const emitterId = filtroEmissor ? filteredTasks[0]?.emitter_id : undefined;
     try {
       await downloadAllPdf({ emitterId, mes, ano });
@@ -179,7 +179,6 @@ const handleDownloadFilteredPDF = async () => {
       const msg = err?.response?.data?.detail || "Erro ao baixar PDFs.";
       window.notify(msg, "error");
     } finally {
-      // Destrava o botão independente de sucesso ou erro
       setIsDownloadingBatch(false);
     }
   };
@@ -328,6 +327,32 @@ const handleDownloadFilteredPDF = async () => {
     }
   };
 
+  // --- NOVO: Funções para Mostrar Detalhes de Atualização ---
+  const handleShowRecentUpdates = async () => {
+    if (clientStats.atualizados === 0) return;
+
+    try {
+      const data = await getClientsUpdatedRecently();
+      setUpdatedClientsList(data);
+      setIsUpdatesModalOpen(true);
+    } catch (err) {
+      console.error(err);
+      window.notify("Erro ao buscar detalhes das atualizações.", "error");
+    }
+  };
+
+  const handleClearUpdates = async () => {
+    try {
+      await clearRecentClientUpdates();
+      setIsUpdatesModalOpen(false);
+      fetchData(); // Atualiza os contadores
+      window.notify("Lista de atualizações limpa.", "success");
+    } catch (err) {
+      console.error(err);
+      window.notify("Erro ao limpar lista.", "error");
+    }
+  };
+
 
   // --- Funções de Formatação ---
   function formatDateTimeBR(isoDate) {
@@ -369,7 +394,7 @@ const handleDownloadFilteredPDF = async () => {
       </div>
       <button
         className="btn btn-success"
-         onClick={() => exportTasksXlsx({ mes, ano })}
+          onClick={() => exportTasksXlsx({ mes, ano })}
         >
           Exportar Excel
       </button>
@@ -409,7 +434,7 @@ const handleDownloadFilteredPDF = async () => {
           </div>
         </div>
          <div // Card de Canceladas
-          className="dashboard-card card-cancelada" // Você pode criar um CSS .card-cancelada (ex: cor cinza)
+          className="dashboard-card card-cancelada"
           onClick={() => { setFiltroStatus("canceled"); setCurrentPage(1); }}
           style={{ cursor: "pointer" }}
         >
@@ -432,12 +457,10 @@ const handleDownloadFilteredPDF = async () => {
         <span>Total: <strong>{clientStats.total}</strong></span>
         <span>Ativos: <strong style={{ color: "#2d8f65" }}>{clientStats.ativos}</strong></span>
         <span>Inativos: <strong style={{ color: "#c44747" }}>{clientStats.inativos}</strong></span>
+
+        {/* MODIFICADO AQUI: onClick chama função do modal */}
         <span
-            onClick={() => {
-              if (clientStats.atualizados > 0) {
-                window.location.href = "/clientes?atualizados=1";
-              }
-            }}
+            onClick={handleShowRecentUpdates}
             style={{
               cursor: clientStats.atualizados > 0 ? "pointer" : "default",
             }}
@@ -810,6 +833,72 @@ const handleDownloadFilteredPDF = async () => {
           </div>
         </div>
       )}
+
+      {/* --- NOVO MODAL: Clientes Atualizados Recentemente --- */}
+      {isUpdatesModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: "800px", width: "90%" }}>
+            <button className="modal-close" onClick={() => setIsUpdatesModalOpen(false)}>&times;</button>
+
+            <h3 style={{ marginTop: 0 }}>Clientes Atualizados Recentemente</h3>
+            <p style={{ fontSize: "14px", color: "#666" }}>
+              O sistema detectou alterações na Receita Federal para estes clientes e atualizou os dados automaticamente.
+            </p>
+
+            <div style={{ maxHeight: "400px", overflowY: "auto", marginTop: "15px", border: "1px solid #eee" }}>
+              <table className="data-table" style={{ marginTop: 0 }}>
+                <thead style={{ position: "sticky", top: 0, zIndex: 1, background: "#f9f9f9" }}>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Documento</th>
+                    <th>Campos Alterados</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {updatedClientsList.length > 0 ? (
+                    updatedClientsList.map((cli, idx) => (
+                      <tr key={idx}>
+                        <td>{cli.nome || "Sem nome"}</td>
+                        <td>{cli.cnpj || cli.cpf || "-"}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+                            {cli.campos_atualizados && cli.campos_atualizados.map((campo) => (
+                              <span key={campo} style={{
+                                background: "#fff3cd", color: "#856404",
+                                padding: "2px 6px", borderRadius: "4px", fontSize: "12px", border: "1px solid #ffeeba"
+                              }}>
+                                {campo}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan="3" style={{textAlign: "center"}}>Nenhum detalhe disponível.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="modal-actions" style={{ justifyContent: "space-between", marginTop: "20px" }}>
+              <button
+                className="btn btn-secondary"
+                onClick={handleClearUpdates}
+                title="Remove o aviso de atualização e zera o contador"
+              >
+                <CircleCheck size={16} style={{marginRight: 5}}/>
+                Marcar todos como vistos
+              </button>
+
+              <button className="btn" onClick={() => setIsUpdatesModalOpen(false)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
