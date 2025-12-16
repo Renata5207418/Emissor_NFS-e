@@ -193,14 +193,3 @@ A visualização do código é permitida apenas para fins educacionais e de aval
 * Alinhado ao Portal Nacional de NFSe
 
 ---
-
-## 🏁 Conclusão
-
-Este projeto demonstra:
-
-* Conhecimento sólido em **emissão fiscal**
-* Automação de regras do **Simples Nacional**
-* Preocupação com **segurança e operação real**
-* Arquitetura preparada para múltiplos usuários e emissores
-
----
