@@ -1,0 +1,518 @@
+/* --- Emitir Nota --- */
+
+.tab-container {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+}
+
+.tab-button {
+  background-color: #f0f0f0;
+  color: #555;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  text-align: left;
+  flex-grow: 0;
+  flex-basis: auto;
+  min-width: 280px;
+  max-width: 350px;
+}
+
+.tab-button:hover {
+  background-color: #e0e0e0;
+}
+
+.tab-button.active {
+  background-color: var(--primary-color);
+  color: #333;
+  box-shadow: 0 4px 10px rgba(107, 179, 155, 0.4);
+}
+
+.tab-button.active .tab-cnpj {
+  opacity: 1;
+}
+
+.tab-empresa {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.tab-cnpj {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-top: 2px;
+  color: #333;
+}
+
+/* Tabela e Colunas */
+.emitir-nota-table {
+  table-layout: fixed; /* Mude para 'fixed' para respeitar as larguras */
+  width: 100%;
+}
+
+.emitir-nota-table th, .emitir-nota-table td {
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  white-space: nowrap; /* <-- AJUSTE APLICADO: Impede quebra de linha */
+}
+
+/* === LARGURAS CORRIGIDAS ABAIXO === */
+.emitir-nota-table .col-check { width: 3%; text-align: center; }
+/* --- AJUSTE APLICADO: Adicionado cursor e position --- */
+.emitir-nota-table .col-cliente {
+  width: 23%;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+}
+.emitir-nota-table .col-documento { width: 13%; text-align: center;}
+.emitir-nota-table .col-descricao { width: 10%; text-align: left;}
+.emitir-nota-table .col-valor { width: 8%; text-align: right; }
+.emitir-nota-table .col-small { width: 5%; text-align: center;}
+.emitir-nota-table .col-medium { width: 9%; text-align: center;}
+.emitir-nota-table .col-status { width: 5%; text-align: center;}
+.emitir-nota-table .col-actions { width: 8%; text-align: center; }
+
+
+/* Estilização do Botão de Upload de Arquivo */
+.custom-file-upload {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0 0 0 8px;
+  height: 42px; /* altura padrão */
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  margin-top: 0;
+}
+
+.custom-file-upload:hover {
+  border-color: var(--primary-color-hover);
+}
+
+.custom-file-upload input[type="file"] {
+  display: none;
+}
+
+.custom-file-upload .upload-button {
+  background-color: var(--primary-color);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  line-height: 1;
+}
+
+.custom-file-upload .upload-button:hover {
+  background-color: var(--primary-color-hover);
+}
+
+.custom-file-upload .file-name {
+  flex: 1;
+  color: var(--text-light-color);
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  max-width: 180px;
+}
+
+/* Linha com erro na prévia */
+.data-table .row-error {
+  background-color: #fef4f4;
+}
+.data-table .row-error:hover {
+  background-color: #fdeaea;
+}
+/* AJUSTE APLICADO: Neutraliza o estilo antigo, pois agora usamos badges */
+.data-table .row-error-text {
+  color: inherit !important;
+  font-weight: normal;
+}
+
+/* Modal de inclusão manual (largo) */
+.modal--wide {
+  max-width: 900px !important;
+  width: 92vw;
+  max-height: 85vh;
+  overflow: auto;
+}
+
+/* --- Estilo para Textarea dentro do Modal de Nova Nota --- */
+.modal textarea.description-modal-input {
+  margin-top: 6px;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  width: 100%;
+}
+
+.modal textarea.description-modal-input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 6px rgba(107,179,155,0.4);
+}
+
+.modal select {
+  background-image: none !important;
+  background: none !important;
+  padding-right: 12px;
+}
+
+/* Estilos da seção do Emissor Selecionado */
+.emissor-selecionado-info {
+  margin-top: 15px;
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+}
+
+.emissor-selecionado-info strong {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.emissor-selecionado-detalhe {
+  color: var(--primary-color-darker, #3c8278);
+  font-weight: 700;
+  margin-right: 5px;
+}
+
+.emissor-selecionado-dica {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: var(--text-light-color);
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-light-color);
+  line-height: 1.3;
+}
+
+.field-ctn {
+  grid-column: 1 / -1;
+}
+
+.modal--wide {
+  max-width: 1040px !important;
+}
+
+.field-ctn input[type="text"] {
+  height: 42px;
+}
+
+@media (max-width: 960px) {
+  .modal .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .field-ctn {
+    grid-column: 1 / -1;
+  }
+}
+/* --- BOTÕES DE AÇÃO editar e duplicar  --- */
+
+.emitir-nota-table .col-actions {
+  /* Garante alinhamento vertical dos botões dentro da célula */
+  vertical-align: middle;
+}
+
+.action-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  color: #555;
+}
+
+.action-button:hover {
+  background-color: #e9e9e0;
+  color: #000; /* Escurece no hover */
+}
+
+/* Controles de Paginação */
+/* --- Container dos Botões de Ação (Gerar XML, etc) --- */
+.actions-container {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* --- Controles de Paginação --- */
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+  background-color: #fff;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.pagination-controls select,
+.pagination-controls button {
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.pagination-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.pagination-controls div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 🔹 Container da barra de busca + upload + botão "Enviar" */
+.emitir-filtros-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+
+/* 🔹 Input de busca */
+.emitir-filtros-container .search-input {
+  flex: 1;
+  min-width: 240px;
+}
+
+/* 🔹 Garante alinhamento horizontal consistente */
+.emitir-filtros-container .custom-file-upload {
+  flex-shrink: 0;
+}
+
+/* 🔹 Botão Enviar sempre do mesmo tamanho visual */
+.emitir-filtros-container .btn {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* 🔹 Ajusta a margem antes da tabela e após filtros */
+.emitir-nota-table {
+  margin-top: 12px;
+}
+
+/* 🔹 Evita "saltos" visuais entre seções */
+.actions-container {
+  margin-top: 16px;
+}
+
+/* AJUSTE APLICADO: Botão "Enviar" agora é secundário (fantasma) */
+.btn-enviar {
+  background-color: transparent;
+  color: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-bg);
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease-in-out;
+  box-shadow: none; /* Remove sombra */
+}
+
+.btn-enviar:hover:not(:disabled) {
+  background-color: #f0fdfa;
+  color: var(--btn-primary-bg);
+  transform: none;
+  filter: none;
+}
+
+.btn-enviar:disabled {
+  background-color: transparent;
+  opacity: 0.5;
+}
+
+
+/* ===== DESCRIÇÃO (uma linha + tooltip) ===== */
+.emitir-nota-table .col-descricao,
+.emitir-nota-table td.col-descricao {
+  width: 10%; /* Sincronizado com a largura da coluna */
+  cursor: pointer;
+  position: relative;
+  text-align: left; /* Garante alinhamento */
+  /* As regras de overflow foram movidas para a <div> interna */
+}
+
+/* --- AJUSTE APLICADO: Classe renomeada para ser genérica --- */
+/* Nova <div> interna para forçar o truncate de forma robusta */
+.truncate-wrapper {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* --- AJUSTE APLICADO: Tooltip agora se aplica a .col-cliente também --- */
+.emitir-nota-table td.col-descricao:hover::after,
+.emitir-nota-table td.col-cliente:hover::after {
+  content: attr(data-full);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #dcdcdc;
+  border-radius: 6px;
+  padding: 8px 10px;
+  width: max-content;
+  max-width: 350px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: normal;
+  z-index: 9999;
+}
+
+/* --- AJUSTE APLICADO: Seta do tooltip agora se aplica a .col-cliente também --- */
+.emitir-nota-table td.col-descricao:hover::before,
+.emitir-nota-table td.col-cliente:hover::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 100%;
+  border: 6px solid transparent;
+  border-bottom-color: #fff;
+  z-index: 99998;
+}
+
+/* ======================================================== */
+/* --- 1. ESTILOS DE BOTÕES SECUNDÁRIOS (AJUSTES) --- */
+/* ======================================================== */
+
+/* Estilo para "Limpar seleção e filtros" (que usa .btn-secondary) */
+.actions-container .btn-secondary {
+  background: transparent;
+  color: var(--text-light-color); /* Cinza */
+  border: 1px solid #ccc;
+  box-shadow: none;
+}
+
+.actions-container .btn-secondary:hover:not(:disabled) {
+  background: #f5f5f5;
+  color: #333;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ======================================================== */
+/* --- 2. BADGES DE STATUS (OK/ERRO) --- */
+/* ======================================================== */
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+}
+
+.status-badge-ok {
+  background-color: #dcfce7; /* Fundo verde claro */
+  color: #166534; /* Texto verde escuro */
+}
+
+.status-badge-erro {
+  background-color: #fee2e2; /* Fundo vermelho claro */
+  color: #b91c1c; /* Texto vermelho escuro */
+
+  /* Adiciona "..." se o texto for muito longo */
+  max-width: 150px;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* ======================================================== */
+/* --- 3. ÍCONES DE AÇÃO COLORIDOS --- */
+/* ======================================================== */
+
+.action-button.action-editar {
+  color: #3b82f6; /* Azul para "Editar" */
+}
+
+.action-button.action-duplicar {
+  color: #166534; /* Verde escuro para "Duplicar" */
+}
+
+.action-button.action-limpar {
+  color: #b91c1c; /* Vermelho escuro para "Limpar" */
+}
+
+/* ======================================================== */
+/* --- 4. ESTILOS DE VALIDAÇÃO DO MODAL --- */
+/* ======================================================== */
+
+/* Estilo para a caixa de input com erro */
+.modal .input-error {
+  border-color: #b91c1c !important; /* Borda vermelha */
+}
+
+/* Estilo do focus para o input com erro */
+.modal .input-error:focus {
+  border-color: #b91c1c !important;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5) !important; /* Sombra vermelha */
+}
+
+/* Estilo para a mensagem de texto do erro */
+.modal .field-error {
+  color: #b91c1c;
+  font-size: 0.85em;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+/* Mensagem de erro geral no topo do modal */
+.modal-error-message {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 0.9em;
+  font-weight: 500;
+  margin-bottom: 15px;
+}

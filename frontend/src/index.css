@@ -1,0 +1,38 @@
+/* frontend/src/index.css */
+:root {
+  --background-color: #f4f7f9;
+  --surface-color: #ffffff;
+  --primary-color: #007bff;
+  --primary-color-hover: #0056b3;
+  --text-color: #333;
+  --border-color: #dee2e6;
+  --header-bg: #2c3e50;
+  --header-text: #ffffff;
+  --footer-bg: #1f2937;
+  --footer-text: #bdc3c7;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+a {
+  text-decoration: none;
+  color: var(--primary-color);
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
