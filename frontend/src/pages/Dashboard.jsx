@@ -152,7 +152,7 @@ export default function Dashboard() {
 
     const emitterId = filtroEmissor ? filteredTasks[0]?.emitter_id : undefined;
     try {
-      await downloadAllXml({ emitterId });
+      await downloadAllXml({ emitterId, mes, ano });
       window.notify("Download de XML iniciado.", "success");
     } catch (err) {
       const msg = err?.response?.data?.detail || "Erro ao baixar XML.";
@@ -173,7 +173,7 @@ const handleDownloadFilteredPDF = async () => {
     // ----------------------------------------
     const emitterId = filtroEmissor ? filteredTasks[0]?.emitter_id : undefined;
     try {
-      await downloadAllPdf({ emitterId });
+      await downloadAllPdf({ emitterId, mes, ano });
       window.notify("Download de PDFs iniciado.", "success");
     } catch (err) {
       const msg = err?.response?.data?.detail || "Erro ao baixar PDFs.";

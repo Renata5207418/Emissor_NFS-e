@@ -14,37 +14,62 @@ import os
 router = APIRouter(prefix="/clients", tags=["Clients"])
 
 RECEITAWS_URL = "https://www.receitaws.com.br/v1/cnpj/{}"
-THROTTLE_SECONDS = 25  # API gratuita da ReceitaWS: 3 req/min (1 a cada 20s)
+# AJUSTE: 21 segundos garante < 3 req/min com margem de segurança
+THROTTLE_SECONDS = 21
 DAYS_BETWEEN_UPDATES = 30
 
 
 def _fill_if_empty(target: dict, key: str, value):
-    if value is None: return
+    if value is None:
+        return
     cur = target.get(key)
     if cur is None or (isinstance(cur, str) and cur.strip() == ""):
         target[key] = value
 
 
 def _enrich_from_receitaws(cnpj: str) -> dict:
+    """
+    Consulta a ReceitaWS. Retorna um dict com os dados ou None em caso de erro/rate-limit.
+    """
     url = RECEITAWS_URL.format(cnpj)
-    print(f"🔎 Consultando ReceitaWS: {url}")
-    resp = requests.get(url, timeout=15)
-    print(f"🔸 Status HTTP ReceitaWS: {resp.status_code}")
+    print(f"?? Consultando ReceitaWS: {url}")
+
     try:
-        data = resp.json()
-    except Exception:
-        print("⚠️ Erro ao converter JSON da ReceitaWS")
-        data = {}
-    print(f"🔸 Resposta ReceitaWS: {data}")
-    resp.raise_for_status()
-    if isinstance(data, dict) and data.get("status") == "ERROR":
-        raise RuntimeError(data.get("message") or "ReceitaWS retornou ERROR")
-    return {
-        "nome": data.get("nome"), "email": data.get("email"),
-        "cep": (data.get("cep") or "").replace("-", "").strip() if data.get("cep") else None,
-        "logradouro": data.get("logradouro"), "bairro": data.get("bairro"),
-        "cidade": data.get("municipio"), "estado": data.get("uf"),
-    }
+        resp = requests.get(url, timeout=15)
+
+        # AJUSTE: Tratamento explícito do 429 (Rate Limit)
+        if resp.status_code == 429:
+            print(f"?? [AVISO] Rate Limit atingido para {cnpj}. Pulando...")
+            return None
+
+        if resp.status_code != 200:
+            print(f"?? [ERRO] Status {resp.status_code} para {cnpj}")
+            return None
+
+        try:
+            data = resp.json()
+        except Exception:
+            print("?? [ERRO] Falha ao converter JSON da ReceitaWS")
+            return None
+
+        # AJUSTE: Se a API retornar ERROR, não retornamos dict vazio, retornamos None
+        if isinstance(data, dict) and data.get("status") == "ERROR":
+            msg = data.get("message") or "ReceitaWS retornou ERROR"
+            print(f"?? [API ERROR] {msg}")
+            return None
+
+        # Sucesso
+        print(f"?? Resposta ReceitaWS OK para {cnpj}")
+        return {
+            "nome": data.get("nome"), "email": data.get("email"),
+            "cep": (data.get("cep") or "").replace("-", "").strip() if data.get("cep") else None,
+            "logradouro": data.get("logradouro"), "bairro": data.get("bairro"),
+            "cidade": data.get("municipio"), "estado": data.get("uf"),
+        }
+
+    except Exception as e:
+        print(f"?? [EXCEPTION] Erro ao consultar ReceitaWS: {e}")
+        return None
 
 
 # ---------------- CRUD SEGURO ---------------- #
@@ -78,7 +103,6 @@ def create_client(client: ClientCreate, current_user: UserInDB = Depends(get_cur
 
     if existing:
         if not existing.get("ativo", True):
-            # 🔸 Cliente existe, mas está desativado → frontend decide reativar
             raise HTTPException(
                 status_code=409,
                 detail={
@@ -88,7 +112,6 @@ def create_client(client: ClientCreate, current_user: UserInDB = Depends(get_cur
                 }
             )
         else:
-            # 🔸 Cliente duplicado (ativo)
             raise HTTPException(
                 status_code=409,
                 detail={
@@ -107,10 +130,12 @@ def create_client(client: ClientCreate, current_user: UserInDB = Depends(get_cur
     if data.get("cnpj"):
         try:
             data_api = _enrich_from_receitaws(data["cnpj"])
-            for key, value in data_api.items():
-                _fill_if_empty(data, key, value)
+            # AJUSTE: Só preenche se retornou dados válidos
+            if data_api:
+                for key, value in data_api.items():
+                    _fill_if_empty(data, key, value)
         except Exception as e:
-            print(f"Falha ReceitaWS: {e}")
+            print(f"Falha ReceitaWS no create: {e}")
 
     cep = sanitize_document(data.get("cep", "") or "")
     if cep and len(cep) == 8:
@@ -149,10 +174,13 @@ def update_client(client_id: str, client: ClientUpdate, current_user: UserInDB =
 
     data = client.dict(exclude_none=True, exclude_unset=True)
     data = {k: v for k, v in data.items() if not (isinstance(v, str) and v.strip() == "")}
-    if "nao_identificado" in data: data.pop("nao_identificado", None)
+    if "nao_identificado" in data:
+        data.pop("nao_identificado", None)
 
-    if "cnpj" in data: data["cnpj"] = sanitize_document(data["cnpj"])
-    if "cpf" in data: data["cpf"] = sanitize_document(data["cpf"])
+    if "cnpj" in data:
+        data["cnpj"] = sanitize_document(data["cnpj"])
+    if "cpf" in data:
+        data["cpf"] = sanitize_document(data["cpf"])
     if "documento" in data:
         tipo, numero = identificar_documento(data["documento"])
         data[tipo] = numero
@@ -206,7 +234,6 @@ def list_clients(incluir_inativos: bool = Query(False), current_user: UserInDB =
     user_id = ObjectId(current_user.id)
     query = {"user_id": user_id, "nao_identificado": {"$ne": True}}
 
-    # 🔹 por padrão traz só ativos
     if not incluir_inativos:
         query["ativo"] = {"$ne": False}
 
@@ -309,20 +336,19 @@ def process_import_file(job_id_str: str, path: str, user_id_str: str):
                     "numero": numero_raw or None,
                 }
 
-                # 🔹 Detecta tipo de documento
                 if payload.get("documento"):
                     tipo, numero = identificar_documento(payload["documento"])
                     payload[tipo] = numero
 
-                # 🔹 Verifica duplicados
                 filtro_dup = {"user_id": user_id}
-                if payload.get("cpf"): filtro_dup["cpf"] = payload.get("cpf")
-                if payload.get("cnpj"): filtro_dup["cnpj"] = payload.get("cnpj")
+                if payload.get("cpf"):
+                    filtro_dup["cpf"] = payload.get("cpf")
+                if payload.get("cnpj"):
+                    filtro_dup["cnpj"] = payload.get("cnpj")
 
                 if len(filtro_dup) > 1 and db.clients.find_one(filtro_dup):
                     raise ValueError("Cliente com este documento já existe para este usuário")
 
-                # 🔹 Vincula emissores (por CNPJ separado por vírgula)
                 emissores_ids = []
                 if emissores_raw:
                     for cnpj_text in [x.strip() for x in emissores_raw.split(",") if x.strip()]:
@@ -333,14 +359,16 @@ def process_import_file(job_id_str: str, path: str, user_id_str: str):
                 if emissores_ids:
                     payload["emissores_ids"] = emissores_ids
 
-                # 🔹 Enriquecimento automático
+                # Enriquecimento automático
                 if payload.get("cnpj"):
                     time.sleep(THROTTLE_SECONDS)
                     data_api = _enrich_from_receitaws(payload["cnpj"])
-                    for key, value in data_api.items():
-                        _fill_if_empty(payload, key, value)
+                    # AJUSTE: Só preenche se data_api não for None
+                    if data_api:
+                        for key, value in data_api.items():
+                            _fill_if_empty(payload, key, value)
 
-                # 🔹 Consulta ViaCEP para preencher endereço e código IBGE
+                # ViaCEP
                 cep_clean = sanitize_document(payload.get("cep") or "")
                 if cep_clean and len(cep_clean) == 8:
                     try:
@@ -348,8 +376,6 @@ def process_import_file(job_id_str: str, path: str, user_id_str: str):
                         if "erro" not in resp:
                             ibge_code = str(resp.get("ibge") or "").strip()
                             if not ibge_code and resp.get("localidade") and resp.get("uf"):
-                                print(f"⚙️ Fallback IBGE para {resp['localidade']}/{resp['uf']}")
-
                                 try:
                                     lookup = requests.get(
                                         f"https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome={resp['localidade']}",
@@ -359,8 +385,8 @@ def process_import_file(job_id_str: str, path: str, user_id_str: str):
                                                   m["microrregiao"]["mesorregiao"]["UF"]["sigla"] == resp["uf"]), None)
                                     if match:
                                         ibge_code = str(match["id"])
-                                except Exception as e:
-                                    print(f"Falha no fallback IBGE para {resp.get('localidade')}/{resp.get('uf')}: {e}")
+                                except Exception:
+                                    pass
 
                             payload.update({
                                 "logradouro": payload.get("logradouro") or resp.get("logradouro"),
@@ -373,7 +399,6 @@ def process_import_file(job_id_str: str, path: str, user_id_str: str):
                     except Exception as e:
                         print(f"Erro ao consultar ViaCEP {cep_clean}: {e}")
 
-                # 🔹 Validações obrigatórias
                 if not payload.get("documento"):
                     raise ValueError("Documento obrigatório não informado")
                 if payload.get("cpf") and not payload.get("nome"):
@@ -439,18 +464,22 @@ def enrich_client(documento: str, current_user: UserInDB = Depends(get_current_u
     if len(doc) == 14:
         try:
             data_api = _enrich_from_receitaws(doc)
-            return {"status": "ok", "data": data_api}
+            if data_api:
+                return {"status": "ok", "data": data_api}
+            else:
+                return {"status": "error", "data": {}, "message": "API indisponível ou Rate Limit"}
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Falha na consulta: {e}")
     return {"status": "ignored", "data": {}}
 
 
+# ---------------- ROTINA DE ATUALIZAÇÃO SEGURA ---------------- #
+
 def atualizar_dados_clientes():
     inicio = datetime.utcnow()
-
     limite_data = datetime.utcnow() - timedelta(days=DAYS_BETWEEN_UPDATES)
 
-    # Busca apenas clientes ativos, com CNPJ e que não foram atualizados há pelo menos X dias
+    # Busca apenas clientes ativos, com CNPJ e que não foram atualizados recentemente
     query = {
         "ativo": True,
         "cnpj": {"$exists": True, "$ne": None},
@@ -460,38 +489,41 @@ def atualizar_dados_clientes():
     clientes = list(db.clients.find(query))
     total = len(clientes)
 
-    print(f"Clientes a verificar: {total} (apenas não atualizados há ? {DAYS_BETWEEN_UPDATES} dias)")
+    print(f"Clientes a verificar: {total}")
 
     count_atualizados = 0
     count_sem_alteracao = 0
-    count_erros = 0
+    count_ignorados = 0
 
-    for idx, cli in enumerate(clientes, start=1):
+    for i, cli in enumerate(clientes, start=1):
         cnpj = cli.get("cnpj")
 
+        # AJUSTE: Consulta a API com proteção
+        data_api = _enrich_from_receitaws(cnpj)
+
+        # AJUSTE: Se retornou None (429 ou erro), PULA e não mexe no banco
+        if not data_api:
+            print(f"[{i}/{total}] CNPJ {cnpj} ignorado (Erro/Limit API).")
+            count_ignorados += 1
+            # Dorme mesmo no erro para não insistir no bloqueio
+            time.sleep(THROTTLE_SECONDS)
+            continue
+
         try:
-            data_api = _enrich_from_receitaws(cnpj)
             update_fields = {}
             campos_atualizados = []
 
-            # Mantém cadastro sempre atualizado, mas só muda o que realmente precisou
             for key, value in data_api.items():
-
-                # ignora retornos vazios da API
                 if value in (None, "", " "):
                     continue
 
                 valor_atual = cli.get(key)
 
-                # normaliza para comparação justa
-                if isinstance(value, str):
-                    value = value.strip()
-                if isinstance(valor_atual, str):
-                    valor_atual = valor_atual.strip()
+                val_api = str(value).strip() if isinstance(value, str) else value
+                val_db = str(valor_atual).strip() if isinstance(valor_atual, str) else valor_atual
 
-                # somente altera se realmente houve mudança
-                if value != valor_atual:
-                    update_fields[key] = value
+                if val_api != val_db:
+                    update_fields[key] = val_api
                     campos_atualizados.append(key)
 
             if update_fields:
@@ -503,36 +535,35 @@ def atualizar_dados_clientes():
                     {"_id": cli["_id"]},
                     {"$set": update_fields}
                 )
-
                 count_atualizados += 1
-                print(f"Atualizado: {cli.get('nome', '-')}")
-                print(f"Alterações: {campos_atualizados}")
+                print(f"[{i}/{total}] Atualizado: {cli.get('nome', '-')} | Mudanças: {campos_atualizados}")
 
             else:
+                # AJUSTE: Se não mudou, atualiza a data para não verificar amanhã de novo
                 db.clients.update_one(
                     {"_id": cli["_id"]},
-                    {"$set": {"atualizado_recente": False}}
+                    {"$set": {"updated_at": datetime.utcnow(), "atualizado_recente": False}}
                 )
                 count_sem_alteracao += 1
+                print(f"[{i}/{total}] Sem alterações: {cnpj}")
 
         except Exception as e:
-            print(f"Erro ao atualizar CNPJ {cnpj}: {e}")
-            count_erros += 1
+            print(f"Erro ao processar atualização CNPJ {cnpj}: {e}")
+            count_ignorados += 1
 
-        # ? LOTE: a cada 3 clientes, aguarda 21s para respeitar o limite
-        if idx % 3 == 0:
-            print("Aguardando 21s (lote de 3 concluído)...")
+        # AJUSTE: Pausa APÓS CADA requisição (sem lotes)
+        if i < total:
             time.sleep(THROTTLE_SECONDS)
 
     fim = datetime.utcnow()
     duracao_min = (fim - inicio).total_seconds() / 60
 
-    print("------------")
+    print("------------ RESUMO ------------")
     print(f"Duração: {duracao_min:.2f} min")
     print(f"Atualizados: {count_atualizados}")
     print(f"Sem alteração: {count_sem_alteracao}")
-    print(f"Erros: {count_erros}")
-    print("------------")
+    print(f"Ignorados (Erro API): {count_ignorados}")
+    print("--------------------------------")
 
 
 @router.get("/stats")

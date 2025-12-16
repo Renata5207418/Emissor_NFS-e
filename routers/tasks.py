@@ -198,11 +198,34 @@ def resumo_por_emissor(
 
 # ------------------------------------------------
 @router.get("/batch/xml")
-def download_all_xml(emitterId: str | None = None, current_user: UserInDB = Depends(get_current_user)):
+def download_all_xml(
+    emitterId: str | None = None,
+    mes: int | None = Query(None, ge=1, le=12),
+    ano: int | None = Query(None, ge=2000),
+    current_user: UserInDB = Depends(get_current_user)
+):
     user_id = ObjectId(current_user.id)
-    q = {"user_id": user_id, "status": "accepted"}
+
+    q = {
+        "user_id": user_id,
+        "status": "accepted"
+    }
+
     if emitterId:
         q["emitter_id"] = emitterId
+
+    if mes and ano:
+        inicio = f"{ano}-{str(mes).zfill(2)}-01"
+
+        if mes == 12:
+            fim = f"{ano + 1}-01-01"
+        else:
+            fim = f"{ano}-{str(mes + 1).zfill(2)}-01"
+
+        q["competencia"] = {
+            "$gte": inicio,
+            "$lt": fim
+        }
 
     cur = db.tasks.find(q)
     mem = io.BytesIO()
@@ -224,15 +247,34 @@ def download_all_xml(emitterId: str | None = None, current_user: UserInDB = Depe
 
 
 @router.get("/batch/pdf")
-def download_all_pdf(emitterId: str | None = None, current_user: UserInDB = Depends(get_current_user)):
-    """
-    Baixa todas as DANFSe (PDFs) das notas aceitas.
-    """
+def download_all_pdf(
+    emitterId: str | None = None,
+    mes: int | None = Query(None, ge=1, le=12),
+    ano: int | None = Query(None, ge=2000),
+    current_user: UserInDB = Depends(get_current_user)
+):
     user_id = ObjectId(current_user.id)
-    q = {"user_id": user_id, "status": "accepted"}
+
+    q = {
+        "user_id": user_id,
+        "status": "accepted"
+    }
 
     if emitterId:
         q["emitter_id"] = emitterId
+
+    if mes and ano:
+        inicio = f"{ano}-{str(mes).zfill(2)}-01"
+
+        if mes == 12:
+            fim = f"{ano + 1}-01-01"
+        else:
+            fim = f"{ano}-{str(mes + 1).zfill(2)}-01"
+
+        q["competencia"] = {
+            "$gte": inicio,
+            "$lt": fim
+        }
 
     cur = db.tasks.find(q)
     mem = io.BytesIO()
@@ -340,7 +382,7 @@ def _pick_final_xml_from_transmit(tr: dict, task: dict | None = None) -> str | N
     if xml_nfse:
         return xml_nfse
 
-    # ✅ 2) Fallback legado: response.xml (unitário usa isso)
+    # ? 2) Fallback legado: response.xml (unitário usa isso)
     xml_legacy = (task.get("response") or {}).get("xml") if task else None
     if xml_legacy:
         return xml_legacy
@@ -349,7 +391,7 @@ def _pick_final_xml_from_transmit(tr: dict, task: dict | None = None) -> str | N
     if not raw:
         return None
 
-    # 3) JSON com nfseXmlGZipB64 → descompacta
+    # 3) JSON com nfseXmlGZipB64 ? descompacta
     try:
         data = json.loads(raw)
         gz_b64 = data.get("nfseXmlGZipB64") or data.get("nfseXmlGzipB64")

@@ -344,36 +344,57 @@ export async function downloadGuia(taskId) {
   window.URL.revokeObjectURL(url);
 }
 
-export async function downloadAllXml({ emitterId } = {}) {
+export async function downloadAllXml({ emitterId, mes, ano } = {}) {
+  const params = {};
+  if (emitterId) params.emitterId = emitterId;
+  if (mes !== undefined) params.mes = mes;
+  if (ano !== undefined) params.ano = ano;
+
   const res = await apiClient.get('/tasks/batch/xml', {
-    params: emitterId ? { emitterId } : {},
+    params,
     responseType: 'blob',
   });
-  const blob = new Blob([res.data], {
-    type: res.headers['content-type'] || 'application/zip',
-  });
+
+  const blob = new Blob(
+    [res.data],
+    { type: res.headers['content-type'] || 'application/zip' }
+  );
+
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.download = pickFileName(res.headers['content-disposition'], 'xml.zip');
+  a.download = pickFileName(
+    res.headers['content-disposition'],
+    'xml.zip'
+  );
   a.href = url;
   document.body.appendChild(a);
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
 }
-export async function downloadAllPdf({ emitterId } = {}) {
+
+export async function downloadAllPdf({ emitterId, mes, ano } = {}) {
+  const params = {};
+  if (emitterId) params.emitterId = emitterId;
+  if (mes !== undefined) params.mes = mes;
+  if (ano !== undefined) params.ano = ano;
+
   const res = await apiClient.get('/tasks/batch/pdf', {
-    params: emitterId ? { emitterId } : {},
+    params,
     responseType: 'blob',
   });
 
-  const blob = new Blob([res.data], {
-    type: res.headers['content-type'] || 'application/zip',
-  });
+  const blob = new Blob(
+    [res.data],
+    { type: res.headers['content-type'] || 'application/zip' }
+  );
 
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.download = pickFileName(res.headers['content-disposition'], 'danfs.zip');
+  a.download = pickFileName(
+    res.headers['content-disposition'],
+    'danfs.zip'
+  );
   a.href = url;
   document.body.appendChild(a);
   a.click();
