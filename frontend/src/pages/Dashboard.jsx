@@ -142,18 +142,37 @@ export default function Dashboard() {
   };
 
   // --- Funções de Download (Lote) ---
-  const handleDownloadFiltered = async () => {
-    if (filteredTasks.length === 0) {
-      window.notify("Nenhuma nota encontrada.", "error");
+const handleDownloadFiltered = async () => {
+    const hasSelection = selectedTaskIds.length > 0;
+    const hasItems = filteredTasks.length > 0;
+
+    if (!hasSelection && !hasItems) {
+      window.notify("Nenhuma nota encontrada ou selecionada.", "error");
       return;
     }
+
     setIsDownloadingBatch(true);
     setOpenMenuId(null);
-    window.notify("Gerando ZIP de XMLs... O download iniciará em instantes.", "info");
+
+    window.notify(
+      hasSelection
+      ? `Gerando ZIP de XML para ${selectedTaskIds.length} nota(s) selecionada(s)...`
+      : "Gerando ZIP de XML para todas as notas do filtro...",
+      "info"
+    );
 
     const emitterId = filtroEmissor ? filteredTasks[0]?.emitter_id : undefined;
+
+    // Se tiver seleção, envia os IDs. Se não, envia undefined (o backend usará mes/ano)
+    const taskIdsToSend = hasSelection ? selectedTaskIds : undefined;
+
     try {
-      await downloadAllXml({ emitterId, mes, ano });
+      await downloadAllXml({
+        emitterId,
+        mes,
+        ano,
+        task_ids: taskIdsToSend // Passamos a lista para a API
+      });
       window.notify("Download de XML iniciado.", "success");
     } catch (err) {
       const msg = err?.response?.data?.detail || "Erro ao baixar XML.";
@@ -163,17 +182,35 @@ export default function Dashboard() {
     }
   };
 
-const handleDownloadFilteredPDF = async () => {
-    if (filteredTasks.length === 0) {
-      window.notify("Nenhuma nota encontrada.", "error");
+  const handleDownloadFilteredPDF = async () => {
+    const hasSelection = selectedTaskIds.length > 0;
+    const hasItems = filteredTasks.length > 0;
+
+    if (!hasSelection && !hasItems) {
+      window.notify("Nenhuma nota encontrada ou selecionada.", "error");
       return;
     }
+
     setIsDownloadingBatch(true);
     setOpenMenuId(null);
-    window.notify("Compilando PDFs e gerando ZIP... Aguarde.", "info");
+
+    window.notify(
+      hasSelection
+      ? `Gerando ZIP de PDF para ${selectedTaskIds.length} nota(s) selecionada(s)...`
+      : "Compilando todos os PDFs do filtro...",
+      "info"
+    );
+
     const emitterId = filtroEmissor ? filteredTasks[0]?.emitter_id : undefined;
+    const taskIdsToSend = hasSelection ? selectedTaskIds : undefined;
+
     try {
-      await downloadAllPdf({ emitterId, mes, ano });
+      await downloadAllPdf({
+        emitterId,
+        mes,
+        ano,
+        task_ids: taskIdsToSend // Passamos a lista para a API
+      });
       window.notify("Download de PDFs iniciado.", "success");
     } catch (err) {
       const msg = err?.response?.data?.detail || "Erro ao baixar PDFs.";
@@ -579,6 +616,7 @@ const handleDownloadFilteredPDF = async () => {
             </th>
             <th>Cliente</th>
             <th>Emissor</th>
+            <th>Valor</th>
             <th>Data de Envio</th>
             <th>Status</th>
             <th style={{ width: 60, textAlign: "center" }}>Ações</th>
@@ -603,6 +641,11 @@ const handleDownloadFilteredPDF = async () => {
                 </td>
                 <td>{t.cliente_nome || "-"}</td>
                 <td>{t.emissor_nome || "-"}</td>
+                <td>
+                  {t.valor
+                    ? t.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                    : "R$ 0,00"}
+                </td>
                 <td>{formatDateTimeBR(t.created_at)}</td>
                 <td>
                   <span
