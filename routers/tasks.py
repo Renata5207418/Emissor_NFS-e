@@ -150,6 +150,8 @@ def list_tasks(
         t["cliente_nome"] = t.get("cliente", {}).get("nome") or "-"
         t["cliente_email"] = t.get("cliente", {}).get("email") or "-"
         t["emissor_nome"] = t.get("emissor", {}).get("razaoSocial") or "-"
+        if t.get("valor") is None:
+            t["valor"] = t.get("response", {}).get("valor")
 
         # --- OTIMIZAÇÃO: Usa o booleano calculado no Mongo, pois o base64 não existe mais aqui
         t["has_pdf"] = t.get("has_pdf_temp", False)
@@ -205,6 +207,7 @@ def resumo_por_emissor(
 # ------------------------------------------------
 @router.get("/batch/xml")
 def download_all_xml(
+    task_ids: list[str] = Query(None),
     emitterId: str | None = None,
     mes: int | None = Query(None, ge=1, le=12),
     ano: int | None = Query(None, ge=2000),
@@ -220,9 +223,17 @@ def download_all_xml(
     if emitterId:
         q["emitter_id"] = emitterId
 
-    if mes and ano:
-        inicio = f"{ano}-{str(mes).zfill(2)}-01"
+    if task_ids:
+        valid_ids = [ObjectId(tid) for tid in task_ids if ObjectId.is_valid(tid)]
+        if valid_ids:
+            q["_id"] = {"$in": valid_ids}
+        else:
+            # Se mandou IDs inválidos, não baixa nada
+            raise HTTPException(status_code=400, detail="Nenhuma nota válida selecionada.")
 
+        # CASO 2: Não selecionou caixinhas, usa o Mês/Ano (Download em Massa do Mês)
+    elif mes and ano:
+        inicio = f"{ano}-{str(mes).zfill(2)}-01"
         if mes == 12:
             fim = f"{ano + 1}-01-01"
         else:
@@ -232,6 +243,10 @@ def download_all_xml(
             "$gte": inicio,
             "$lt": fim
         }
+
+        # CASO 3: Trava de Segurança (Sem ID e Sem Data)
+    else:
+        raise HTTPException(status_code=400, detail="É necessário selecionar notas ou informar um período (mês/ano).")
 
     cur = db.tasks.find(q)
     mem = io.BytesIO()
@@ -254,6 +269,7 @@ def download_all_xml(
 
 @router.get("/batch/pdf")
 def download_all_pdf(
+        task_ids: list[str] = Query(None),
         emitterId: str | None = None,
         mes: int | None = Query(None, ge=1, le=12),
         ano: int | None = Query(None, ge=2000),
@@ -269,7 +285,16 @@ def download_all_pdf(
     if emitterId:
         q["emitter_id"] = emitterId
 
-    if mes and ano:
+    if task_ids:
+        valid_ids = [ObjectId(tid) for tid in task_ids if ObjectId.is_valid(tid)]
+        if valid_ids:
+            q["_id"] = {"$in": valid_ids}
+        else:
+            # Se mandou IDs inválidos, não baixa nada
+            raise HTTPException(status_code=400, detail="Nenhuma nota válida selecionada.")
+
+        # CASO 2: Não selecionou caixinhas, usa o Mês/Ano (Download em Massa do Mês)
+    elif mes and ano:
         inicio = f"{ano}-{str(mes).zfill(2)}-01"
         if mes == 12:
             fim = f"{ano + 1}-01-01"
@@ -280,6 +305,10 @@ def download_all_pdf(
             "$gte": inicio,
             "$lt": fim
         }
+
+        # CASO 3: Trava de Segurança (Sem ID e Sem Data)
+    else:
+        raise HTTPException(status_code=400, detail="É necessário selecionar notas ou informar um período (mês/ano).")
 
     # Ordena por data de criação para que o (1), (2) siga a ordem de emissão
     cur = db.tasks.find(q).sort("created_at", 1)

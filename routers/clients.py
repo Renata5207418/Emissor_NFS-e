@@ -177,14 +177,21 @@ def update_client(client_id: str, client: ClientUpdate, current_user: UserInDB =
     if "nao_identificado" in data:
         data.pop("nao_identificado", None)
 
-    if "cnpj" in data:
-        data["cnpj"] = sanitize_document(data["cnpj"])
-    if "cpf" in data:
-        data["cpf"] = sanitize_document(data["cpf"])
     if "documento" in data:
         tipo, numero = identificar_documento(data["documento"])
         data[tipo] = numero
         data.pop("documento", None)
+
+    # --- BLINDAGEM NO UPDATE ---
+    if "cnpj" in data:
+        data["cnpj"] = sanitize_document(data["cnpj"])
+    if "cpf" in data:
+        data["cpf"] = sanitize_document(data["cpf"])
+    if "cep" in data:
+        data["cep"] = sanitize_document(str(data["cep"]))
+    if "codigoIbge" in data:
+        data["codigoIbge"] = sanitize_document(str(data["codigoIbge"]))
+    # ---------------------------
 
     if data.get("cpf") and not data.get("nome"):
         raise HTTPException(status_code=400, detail="Nome é obrigatório para CPF")
@@ -193,7 +200,7 @@ def update_client(client_id: str, client: ClientUpdate, current_user: UserInDB =
     if not data.get("numero"):
         raise HTTPException(status_code=400, detail="Número do logradouro é obrigatório")
 
-    cep = sanitize_document(data.get("cep", "") or "")
+    cep = data.get("cep", "")
     if cep and len(cep) == 8:
         try:
             resp = requests.get(f"https://viacep.com.br/ws/{cep}/json/").json()
@@ -203,10 +210,14 @@ def update_client(client_id: str, client: ClientUpdate, current_user: UserInDB =
                     "bairro": resp.get("bairro"),
                     "cidade": resp.get("localidade"),
                     "estado": resp.get("uf"),
-                    "codigoIbge": resp.get("ibge"),
+                    "codigoIbge": sanitize_document(str(resp.get("ibge") or "")),
                 })
         except Exception:
             pass
+
+    # Garante limpeza final
+    if "codigoIbge" in data:
+        data["codigoIbge"] = sanitize_document(str(data["codigoIbge"]))
 
     result = db.clients.update_one(query, {"$set": data})
     if result.matched_count == 0:
@@ -254,7 +265,6 @@ def reativar_client(client_id: str, current_user: UserInDB = Depends(get_current
 
 
 # ---------------- IMPORTAÇÃO SEGURA ---------------- #
-
 @router.post("/import")
 async def import_clients(
         background_tasks: BackgroundTasks,
@@ -474,12 +484,10 @@ def enrich_client(documento: str, current_user: UserInDB = Depends(get_current_u
 
 
 # ---------------- ROTINA DE ATUALIZAÇÃO SEGURA ---------------- #
-
 def atualizar_dados_clientes():
     inicio = datetime.utcnow()
     limite_data = datetime.utcnow() - timedelta(days=DAYS_BETWEEN_UPDATES)
 
-    # Busca apenas clientes ativos, com CNPJ e que não foram atualizados recentemente
     query = {
         "ativo": True,
         "cnpj": {"$exists": True, "$ne": None},
@@ -488,7 +496,6 @@ def atualizar_dados_clientes():
 
     clientes = list(db.clients.find(query))
     total = len(clientes)
-
     print(f"Clientes a verificar: {total}")
 
     count_atualizados = 0
@@ -497,15 +504,11 @@ def atualizar_dados_clientes():
 
     for i, cli in enumerate(clientes, start=1):
         cnpj = cli.get("cnpj")
-
-        # AJUSTE: Consulta a API com proteção
         data_api = _enrich_from_receitaws(cnpj)
 
-        # AJUSTE: Se retornou None (429 ou erro), PULA e não mexe no banco
         if not data_api:
             print(f"[{i}/{total}] CNPJ {cnpj} ignorado (Erro/Limit API).")
             count_ignorados += 1
-            # Dorme mesmo no erro para não insistir no bloqueio
             time.sleep(THROTTLE_SECONDS)
             continue
 
@@ -519,8 +522,13 @@ def atualizar_dados_clientes():
 
                 valor_atual = cli.get(key)
 
-                val_api = str(value).strip() if isinstance(value, str) else value
-                val_db = str(valor_atual).strip() if isinstance(valor_atual, str) else valor_atual
+                # Tratamento especial usando sanitize_document
+                if key in ["cep", "codigoIbge"]:
+                    val_api = sanitize_document(str(value))
+                    val_db = sanitize_document(str(valor_atual or ""))
+                else:
+                    val_api = str(value).strip() if isinstance(value, str) else value
+                    val_db = str(valor_atual).strip() if isinstance(valor_atual, str) else valor_atual
 
                 if val_api != val_db:
                     update_fields[key] = val_api
@@ -537,9 +545,7 @@ def atualizar_dados_clientes():
                 )
                 count_atualizados += 1
                 print(f"[{i}/{total}] Atualizado: {cli.get('nome', '-')} | Mudanças: {campos_atualizados}")
-
             else:
-                # AJUSTE: Se não mudou, atualiza a data para não verificar amanhã de novo
                 db.clients.update_one(
                     {"_id": cli["_id"]},
                     {"$set": {"updated_at": datetime.utcnow(), "atualizado_recente": False}}
@@ -551,18 +557,16 @@ def atualizar_dados_clientes():
             print(f"Erro ao processar atualização CNPJ {cnpj}: {e}")
             count_ignorados += 1
 
-        # AJUSTE: Pausa APÓS CADA requisição (sem lotes)
         if i < total:
             time.sleep(THROTTLE_SECONDS)
 
     fim = datetime.utcnow()
     duracao_min = (fim - inicio).total_seconds() / 60
-
     print("------------ RESUMO ------------")
     print(f"Duração: {duracao_min:.2f} min")
     print(f"Atualizados: {count_atualizados}")
     print(f"Sem alteração: {count_sem_alteracao}")
-    print(f"Ignorados (Erro API): {count_ignorados}")
+    print(f"Ignorados: {count_ignorados}")
     print("--------------------------------")
 
 

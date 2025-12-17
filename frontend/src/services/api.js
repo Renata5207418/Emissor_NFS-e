@@ -344,14 +344,19 @@ export async function downloadGuia(taskId) {
   window.URL.revokeObjectURL(url);
 }
 
-export async function downloadAllXml({ emitterId, mes, ano } = {}) {
-  const params = {};
-  if (emitterId) params.emitterId = emitterId;
-  if (mes !== undefined) params.mes = mes;
-  if (ano !== undefined) params.ano = ano;
+export async function downloadAllXml({ emitterId, mes, ano, task_ids } = {}) {
+  const params = new URLSearchParams();
+
+  if (emitterId) params.append('emitterId', emitterId);
+  if (mes !== undefined) params.append('mes', mes);
+  if (ano !== undefined) params.append('ano', ano);
+
+  if (task_ids && Array.isArray(task_ids)) {
+    task_ids.forEach(id => params.append('task_ids', id));
+  }
 
   const res = await apiClient.get('/tasks/batch/xml', {
-    params,
+    params: params,
     responseType: 'blob',
   });
 
@@ -373,14 +378,19 @@ export async function downloadAllXml({ emitterId, mes, ano } = {}) {
   window.URL.revokeObjectURL(url);
 }
 
-export async function downloadAllPdf({ emitterId, mes, ano } = {}) {
-  const params = {};
-  if (emitterId) params.emitterId = emitterId;
-  if (mes !== undefined) params.mes = mes;
-  if (ano !== undefined) params.ano = ano;
+export async function downloadAllPdf({ emitterId, mes, ano, task_ids } = {}) {
+  const params = new URLSearchParams();
+
+  if (emitterId) params.append('emitterId', emitterId);
+  if (mes !== undefined) params.append('mes', mes);
+  if (ano !== undefined) params.append('ano', ano);
+
+  if (task_ids && Array.isArray(task_ids)) {
+      task_ids.forEach(id => params.append('task_ids', id));
+  }
 
   const res = await apiClient.get('/tasks/batch/pdf', {
-    params,
+    params: params,
     responseType: 'blob',
   });
 
