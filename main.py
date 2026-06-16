@@ -616,14 +616,5 @@ def startup_event():
 def root():
     return {"msg": "API NFSe rodando com scheduler automático"}
 
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="localhost",
-        port=6600,
-        reload=True,
-        reload_excludes=["logs/*", "*.log"]
-    )
-
 # run back -> uvicorn main:app --host 0.0.0.0 --port 6600
 # run  front -> cd frontend  npm run dev -- --host 0.0.0.0
