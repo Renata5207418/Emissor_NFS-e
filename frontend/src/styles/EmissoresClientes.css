@@ -1,0 +1,259 @@
+/* --- Estilos para o Cadastro de Clientes e Emissores --- */
+
+.data-table .col-texto-longo {
+  max-width: 250px; /* Você pode ajustar este valor */
+}
+
+/* A DIV DENTRO da célula é quem corta o texto */
+.data-table .col-texto-longo > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 5px;
+}
+
+/* Grid de emissores no modal de cliente */
+.emissores-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 2 por linha */
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .emissores-grid {
+    grid-template-columns: 1fr; /* mobile: 1 por linha */
+  }
+}
+
+/* Card do emissor (checkbox visual) */
+.emissor-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  line-height: 1.2;
+}
+
+.emissor-card:hover {
+  border-color: var(--primary-color-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.emissor-card.selected {
+  border-color: var(--primary-color);
+  background-color: #f0f8f6;
+}
+
+.emissor-info {
+    display: flex;
+    flex-direction: column;
+}
+.emissor-razao {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-color);
+}
+.emissor-cnpj {
+    font-size: 12px;
+    color: var(--text-light-color);
+    margin-top: 2px;
+}
+
+/* --- Estilização do Checkbox no card (customizado) --- */
+.emissor-card input[type="checkbox"] {
+  /* Reseta a aparência padrão do navegador */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+
+  /* Garante que o checkbox não cresça ou encolha no layout flex */
+  flex-shrink: 0;
+
+  /* Dimensões e Estilo da Caixa */
+  width: 16px;
+  height: 16px;
+  border: 1px solid #b0bec5;
+  border-radius: 4px;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+  margin-top: 0;
+}
+
+/* Efeito ao passar o mouse */
+.emissor-card input[type="checkbox"]:hover:not(:checked) {
+  border-color: var(--primary-color-hover);
+}
+
+/* Estilo quando o checkbox está marcado */
+.emissor-card input[type="checkbox"]:checked {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/* Desenhando o checkmark com CSS */
+.emissor-card input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+
+  /* Posição do checkmark dentro da caixa */
+  left: 5px;
+  top: 2px;
+
+  /* Dimensões do checkmark */
+  width: 4px;
+  height: 8px;
+
+  /* Cria a forma de "V" usando bordas */
+  border: solid white;
+  border-width: 0 2px 2px 0;
+
+  /* Rotaciona para formar o checkmark */
+  transform: rotate(45deg);
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  line-height: 1.6;
+}
+
+.badge.ok {
+  background: #e6f7e9;
+  color: #0a6c2f;
+  border-color: #bfe8c8;
+}
+
+.badge.warning {
+  background: #fff7e6;
+  color: #8a5200;
+  border-color: #ffe0b3;
+}
+
+.badge.expired {
+  background: #ffecec;
+  color: #a40000;
+  border-color: #ffb3b3;
+}
+
+.hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #8a5200;
+}
+/* centraliza a coluna de status (header + células) */
+.data-table th.status-col,
+.data-table td.status-col {
+  text-align: center;
+}
+
+/* garante que o conteúdo da célula não “grude” na esquerda/direita */
+.data-table td.status-col .badge,
+.data-table td.status-col .hint {
+  margin-left: 0;
+}
+
+/* Estilos para o cabeçalho da tabela ordenável */
+.sortable-header {
+  cursor: pointer;
+  user-select: none; /* Impede a seleção de texto ao clicar */
+}
+
+.sortable-header:hover {
+  background-color: #93c7c0; /* Um pouco mais escuro que o fundo do header */
+}
+
+/* Controles de Paginação */
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  margin-top: 10px;
+  flex-wrap: wrap; /* Permite que os itens quebrem linha em telas menores */
+  gap: 15px;      /* Espaçamento entre os grupos de controle */
+}
+
+.pagination-controls select,
+.pagination-controls button {
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #fff;
+  cursor: pointer;
+}
+
+.pagination-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.pagination-controls div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.form-grid .full-width-grid-item {
+  grid-column: 1 / -1;
+}
+tr.inativo td {
+  color: #999;
+}
+.btn-link {
+    color: #00695c;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+.btn-link:hover {
+  color: #004d40;
+  text-decoration: underline;
+}
+
+.btn-link.reativar {
+  color: #00695c;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.btn-link.reativar:hover {
+  color: #004d40;
+  text-decoration: underline;
+}
+/* ---- Filtro checkbox "Mostrar inativos" ---- */
+.checkbox-filter {
+  display: flex;
+  align-items: center;
+  gap: 5px; /* Espaço entre o checkbox e o texto */
+  font-size: 14px;
+  color: #374151;
+  white-space: nowrap;
+  margin-bottom: 15px;
+}
+.checkbox-filter input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #0f766e;
+}
+.empty-state-card{
+ color: #3c8278;
+}
